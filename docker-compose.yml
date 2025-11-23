@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  mariadb:
+    image: mariadb:11.3
+    container_name: shop-lab-mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-shop_lab}
+      MYSQL_USER: ${MYSQL_USER:-shop_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-shoppassword}
+    ports:
+      - "${MARIADB_PORT:-3306}:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - shop-network
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shop-lab-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-shop_user}:${MYSQL_PASSWORD:-shoppassword}@mariadb:3306/${MYSQL_DATABASE:-shop_lab}?connection_limit=5
+      SESSION_SECRET: ${SESSION_SECRET:-change-this-secret-in-production}
+      NODE_ENV: production
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - shop-network
+
+volumes:
+  mariadb_data:
+    driver: local
+
+networks:
+  shop-network:
+    driver: bridge
